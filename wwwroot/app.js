@@ -29,29 +29,17 @@ function switchView(next) {
 }
 $('guest-tab').addEventListener('click',()=>switchView('guest'));
 $('dj-tab').addEventListener('click',()=>switchView('dj'));
-$('table-button').addEventListener('click',()=>$('table-dialog').showModal());
+$('table-button').addEventListener('click', () => $('table-dialog').showModal());
 $('close-dialog').addEventListener('click',()=>$('table-dialog').close());
-$('qr-button').addEventListener('click',()=>$('qr-dialog').showModal());
-$('close-qr').addEventListener('click',()=>$('qr-dialog').close());
-async function loadSession(){session=await api('/api/guest/session');$('table-button').textContent=session.table?`Столик № ${session.table} — сменить`:'Выбрать столик';$('demo-password').hidden=!session.demo;}
-async function loadTables(){const tables=await api('/api/tables');$('table-choices').innerHTML=tables.map(t=>`<button class="table-choice" data-table="${t.number}" aria-label="Выбрать столик ${t.number}"><span>СТОЛИК</span><strong>${String(t.number).padStart(2,'0')}</strong></button>`).join('');}
-$('table-choices').addEventListener('click', async event => {
- const button = event.target.closest('[data-table]');
- if (!button || selectingTable) return;
- selectingTable = button.disabled = true;
- try {
-  await api('/api/guest/select', {method:'POST', body:JSON.stringify({tableNumber:Number(button.dataset.table)})});
-  await loadSession();
-  favorites = new Map();
-  $('table-dialog').close();
-  if (catalogMode === 'favorites') showTracks([], 'Загружаем избранное…');
-  await refresh();
-  await loadFavorites();
-  await loadCatalog();
-  toast('Столик ' + session.table + '. Выбирай трек!');
- } catch (error) { toast(error.message,true); }
- finally { selectingTable = button.disabled = false; }
-});
+async function loadSession() {
+ session = await api('/api/guest/session');
+ $('table-button').textContent = session.table ? 'Столик № ' + session.table : 'Как подключить столик';
+ $('table-button').disabled = Boolean(session.table);
+ $('table-intro').textContent = session.table
+  ? 'Столик подключён. Выбирай трек!'
+  : 'Отсканируй QR на своём столике, чтобы заказать трек.';
+ $('demo-password').hidden = !session.demo;
+}
 function countdown(seconds, ticking) {
  return '<span data-wait="' + seconds + '" data-ticking="' + ticking + '">' + duration(seconds) + '</span>';
 }
@@ -239,9 +227,18 @@ $('tables').addEventListener('click', async event => {
 $('close-table-qr').addEventListener('click', () => $('table-qr-dialog').close());
 $('print-table-qr').addEventListener('click', () => window.print());
 $('settings-form').addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/dj/settings',{method:'PUT',body:JSON.stringify({mood:$('mood').value,tableLimit:Number($('limit').value),maxDuration:Number($('duration').value),accepting:$('accepting').checked,allowExplicit:$('explicit').checked})});await refresh();toast('Настройки вечера сохранены.');}catch(err){toast(err.message,true);}});
-async function start(){try{await loadSession();await loadTables();await loadFavorites();await loadCatalog();await refresh();}catch(e){toast('Сервер недоступен. '+e.message,true);}}
+async function start(){try{await loadSession();await loadFavorites();await loadCatalog();await refresh();}catch(e){toast('Сервер недоступен. '+e.message,true);}}
 let refreshing=false;
 setInterval(async()=>{if(document.hidden||refreshing)return;refreshing=true;try{await refresh();}catch(e){if(view==='dj'&&authenticated)loadDj().catch(()=>{});}finally{refreshing=false;}},3000);
 bindCatalog();
-if (sessionStorage.getItem('encore.view') === 'dj') switchView('dj');
+const pageUrl = new URL(window.location.href);
+const qrResult = pageUrl.searchParams.get('table-qr');
+if (qrResult === 'joined' || qrResult === 'locked') {
+ pageUrl.searchParams.delete('table-qr');
+ history.replaceState(history.state, '', pageUrl);
+ switchView('guest');
+ if (qrResult === 'locked') toast('Чтобы подключить другой столик, сначала заверши текущий визит.', true);
+} else if (sessionStorage.getItem('encore.view') === 'dj') {
+ switchView('dj');
+}
 start();

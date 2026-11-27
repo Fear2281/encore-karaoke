@@ -8,7 +8,6 @@ public record Track(int Id, string Title, string Artist, string Genre, int Durat
 public record RestaurantTable(int Number, string Token);
 public record GuestSession(string Id, int Table, DateTimeOffset Expires) {
     public HashSet<int> Favorites { get; init; } = [];
-    public string? BrowserVisitGroup { get; init; }
 }
 public class RequestItem {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -91,25 +90,17 @@ public class MusicStore {
         var table = state.Tables.FirstOrDefault(t => t.Token == token) ?? throw new RuleException("Неизвестный код столика.",404);
         var current = FindGuest(currentId);
         if (current?.Table == table.Number) return current;
-        var group = current?.BrowserVisitGroup ?? current?.Id;
-        if (group != null) {
-            var previous = state.Visits.Values.FirstOrDefault(visit => visit.Table == table.Number &&
-                (visit.BrowserVisitGroup ?? visit.Id) == group && visit.Expires > DateTimeOffset.UtcNow);
-            if (previous != null) return previous;
-        }
+        if (current != null) throw new RuleException("Сначала завершите текущий визит, чтобы подключить другой столик.", 409);
         if (state.Visits.Count >= 500) throw new RuleException("Слишком много открытых визитов. Обратитесь к сотруднику.", 503);
-        var session = new GuestSession(Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), table.Number, DateTimeOffset.UtcNow.AddHours(4)) {
-            BrowserVisitGroup = group
-        };
+        var session = new GuestSession(Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), table.Number, DateTimeOffset.UtcNow.AddHours(4));
         state.Visits.Add(session.Id, session);
         try { Save(); } catch { state.Visits.Remove(session.Id); throw; }
         return session;
     }}
-    public string DemoToken() { lock(gate) return state.Tables[0].Token; }
     private GuestSession? FindGuest(string? id) =>
         id != null && state.Visits.TryGetValue(id, out var guest) && guest.Expires > DateTimeOffset.UtcNow ? guest : null;
     public GuestSession Guest(string? id) { lock(gate) {
-        return FindGuest(id) ?? throw new RuleException("Визит завершён. Отсканируйте QR столика или выберите номер.", 401);
+        return FindGuest(id) ?? throw new RuleException("Визит завершён. Отсканируйте QR столика.", 401);
     }}
     public void EndVisit(string? id) { lock(gate) {
         if (id != null && state.Visits.ContainsKey(id)) CloseVisits([id]);

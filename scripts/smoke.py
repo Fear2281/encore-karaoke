@@ -91,8 +91,14 @@ with TemporaryDirectory(prefix='encore-check-') as directory:
             assert b'<svg' in dj.request(f"/api/dj/tables/{table['number']}/qr")
         guest.request('/table/bad-token', expected=404)
         first_table = '/table/' + tables[0]['token']
+        second_table = '/table/' + tables[1]['token']
+        guest.request('/api/guest/select', 'POST', {'tableNumber': 1}, 404)
+        guest.request('/api/guest/demo', 'POST', expected=404)
+        assert guest.request('/api/guest/session')['table'] is None
         guest.request(first_table)
-        neighbor.request('/table/' + tables[1]['token'])
+        guest.request(second_table)
+        guest.request('/api/guest/select', 'POST', {'tableNumber': 2}, 404)
+        neighbor.request(second_table)
         assert guest.request('/api/guest/session')['table'] == 1
         chart = guest.request('/api/catalog/vk/discover')
         def order(client, rank):
@@ -117,8 +123,10 @@ with TemporaryDirectory(prefix='encore-check-') as directory:
         guest.request('/api/guest/end', 'POST', expected=403, headers={'Origin': 'https://other.example'})
         guest.request('/api/guest/end', 'POST')
         assert guest.request('/api/guest/session')['table'] is None
-        guest.request(first_table)
+        guest.request(second_table)
+        assert guest.request('/api/guest/session')['table'] == 2
         assert guest.request('/api/queue')['history'] == []
+        guest.request('/api/guest/end', 'POST')
         assert dj.request('/api/dj/tables/2/close', 'POST')['closed'] == 1
         assert neighbor.request('/api/queue')['table'] is None
         assert guest.request('/api/popular') == []

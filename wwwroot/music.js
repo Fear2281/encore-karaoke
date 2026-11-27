@@ -79,7 +79,7 @@ async function loadCatalog() {
  if (generation !== catalogRequest) return;
  showTracks(rows, popular ? 'За последние 7 дней ещё не было завершённых выступлений с треками VK.'
   : session.table ? 'Нажмите на звёздочку рядом с треком VK, чтобы сохранить его на время визита.'
-   : 'Выберите столик, чтобы открыть избранное.');
+   : 'Отсканируйте QR столика, чтобы открыть избранное.');
 }
 
 function bindCatalog() {
